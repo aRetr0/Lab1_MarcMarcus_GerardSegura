@@ -1,6 +1,7 @@
 import os
 import socket
 import struct
+import sys
 
 
 def resolve_target(domain: str) -> str:
@@ -89,7 +90,11 @@ def main() -> None:
     Main logic of sending ICMP packets to trace route to a target
     :return: None
     """
-    target = "google.com"  # Target domain
+    if len(sys.argv) != 2:
+        print("Usage: sudo python mtr1.py <target_domain>")
+        return
+
+    target = sys.argv[1]  # Get target domain from command-line argument
     target_ip = resolve_target(target)  # Resolve domain to IP
     if target_ip is None:
         return
