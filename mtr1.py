@@ -71,18 +71,42 @@ def create_socket() -> socket.socket:
         return None
 
 
-def send_icmp_packet(sock: socket.socket, target_ip: str, packet: bytes) -> None:
+def send_icmp_packet(sock: socket.socket, target_ip: str, packet: bytes, ttl: int) -> None:
     """
     Send an ICMP packet
     :param sock: socket.socket
     :param target_ip: str
     :param packet: bytes
+    :param ttl: int
     :return: None
     """
     try:
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
         sock.sendto(packet, (target_ip, 0))  # Send packet to target IP
+        print(f"Packet sent with TTL {ttl}, to {target_ip}")
     except socket.error as e:
         print(f"Error sending packet: {e}")
+
+
+def receive_icmp_reply(sock: socket.socket, target_ip: str, ttl: int) -> bool:
+    """
+    Receive an ICMP reply
+    :param sock: socket.socket
+    :param target_ip: str
+    :param ttl: int
+    :return: bool
+    """
+    try:
+        sock.settimeout(2)
+        data, addr = sock.recvfrom(1024)
+        if addr[0] == target_ip:
+            print(f"Received reply from {target_ip} with TTL {ttl}")
+            return True
+    except socket.timeout:
+        print(f"Timeout waiting for reply with TTL {ttl}")
+    except socket.error as e:
+        print(f"Error receiving reply: {e}")
+    return False
 
 
 def main() -> None:
@@ -99,15 +123,22 @@ def main() -> None:
     if target_ip is None:
         return
 
+    print(f"Target {target} resolved to {target_ip}")
+
     sock = create_socket()  # Create raw socket
     if sock is None:
         return
 
     identifier = os.getpid() & 0xFFFF  # Use process ID as identifier
     sequence = 1  # Initial sequence number
-    packet = create_icmp_packet(identifier, sequence)  # Create ICMP packet
 
-    send_icmp_packet(sock, target_ip, packet)  # Send ICMP packet
+    ttl = 1
+    while True:
+        packet = create_icmp_packet(identifier, sequence)  # Create ICMP packet
+        send_icmp_packet(sock, target_ip, packet, ttl)  # Send ICMP packet
+        if receive_icmp_reply(sock, target_ip, ttl):  # Receive ICMP reply
+            break
+        ttl += 1
 
     sock.close()  # Close socket
 
