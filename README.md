@@ -72,5 +72,5 @@ sudo python mtr1.py example.com
 
 The authors of this project are:
 
-- Marc Marcus
+- Marc Marcús
 - Gerard Segura
