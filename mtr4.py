@@ -3,7 +3,6 @@ import struct
 import time
 import os
 import sys
-import signal
 import statistics
 import curses
 
@@ -69,7 +68,7 @@ def resolve_ip_to_hostname(ip):
         return ip
 
 
-def receive_icmp_reply(icmp_socket, target_ip, ttl, send_time, timings_per_host, loss_per_ttl):
+def receive_icmp_reply(icmp_socket, target_ip, send_time):
     try:
         icmp_socket.settimeout(2)
         data, addr = icmp_socket.recvfrom(1024)
@@ -85,15 +84,6 @@ def receive_icmp_reply(icmp_socket, target_ip, ttl, send_time, timings_per_host,
         print(f"Error receiving reply: {e}")
         return False, None, None
 
-
-def format_value(value):
-    def format_value(value):
-        if isinstance(value, float):
-            return f"{value:.2f}"
-        elif isinstance(value, int):
-            return f"{value}"
-        else:
-            return str(value)
 
 
 def update_rtt_stats(ttl: int, rtt: float):
@@ -141,8 +131,6 @@ def main(stdscr):
     sequence_number = 1
 
     ttl = 2
-    timings_per_host = {}
-    loss_per_ttl = {}
 
     while True:
         packet = create_icmp_packet(identifier, sequence_number)
@@ -154,7 +142,7 @@ def main(stdscr):
             sent_packets[ttl] = 0
         sent_packets[ttl] += 1
 
-        received, rtt, reply_ip = receive_icmp_reply(sock, target_ip, ttl, send_time, timings_per_host, loss_per_ttl)
+        received, rtt, reply_ip = receive_icmp_reply(sock, target_ip, send_time)
 
         if received:
             if ttl not in received_packets:
