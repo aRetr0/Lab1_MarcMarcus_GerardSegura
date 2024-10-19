@@ -1,10 +1,10 @@
-import socket
-import struct
-import time
-import os
-import sys
-import statistics
 import curses
+import os
+import socket
+import statistics
+import struct
+import sys
+import time
 from typing import Tuple, Optional
 
 # Dictionary to store RTT data for each TTL
@@ -177,10 +177,6 @@ def main(stdscr) -> None:
     :param stdscr: The curses screen object.
     :return: None
     """
-    # Check if the correct number of arguments is provided
-    if len(sys.argv) != 2:
-        print("Usage: sudo python mtr4.py <target_domain>")
-        return
 
     # Resolve the target domain to an IP address
     target = sys.argv[1]
@@ -273,5 +269,12 @@ def main(stdscr) -> None:
     stdscr.getch()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # Check if the script is run with superuser privileges
+    if os.geteuid() != 0:
+        print("This script must be run with sudo or as root.")
+        sys.exit(1)
+    # Check if the correct number of arguments is provided
+    if len(sys.argv) != 2:
+        print("Usage: sudo python mtr4.py <target_domain>")
+        sys.exit(1)
     curses.wrapper(main)

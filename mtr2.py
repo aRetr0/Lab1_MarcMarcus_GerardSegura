@@ -143,6 +143,9 @@ def main() -> None:
     Main function to perform traceroute-like functionality
     :return:
     """
+    if os.geteuid() != 0:
+        print("This script must be run with sudo or as root.")
+        sys.exit(1)
     if len(sys.argv) != 2:
         print("Usage: sudo python mtr1.py <target_domain>")
         return

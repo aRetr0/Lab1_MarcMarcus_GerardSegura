@@ -1,9 +1,9 @@
 import os
 import socket
+import statistics
 import struct
 import sys
 import time
-import statistics
 
 # Define a dictionary to store RTT data for each hop
 rtt_data = {}
@@ -160,6 +160,10 @@ def main() -> None:
     Main logic of sending ICMP packets to trace route to a target
     :return: None
     """
+    if os.geteuid() != 0:
+        print("This script must be run with sudo or as root.")
+        sys.exit(1)
+
     if len(sys.argv) != 2:
         print("Usage: sudo python mtr3.py <target_domain>")
         return
