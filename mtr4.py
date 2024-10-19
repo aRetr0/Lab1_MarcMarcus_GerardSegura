@@ -3,23 +3,16 @@ import struct
 import time
 import os
 import sys
+import signal
 import statistics
 import curses
 
-# Dictionary to store RTT data for each hop
 rtt_data = {}
-# Dictionary to store the number of sent packets for each TTL
 sent_packets = {}
-# Dictionary to store the number of received packets for each TTL
 received_packets = {}
 
 
-def resolve_target(target: str) -> str:
-    """
-    Resolve the target domain to an IP address
-    :param target: The domain name to resolve
-    :return: The resolved IP address or None if resolution fails
-    """
+def resolve_target(target):
     try:
         return socket.gethostbyname(target)
     except socket.gaierror as e:
@@ -27,12 +20,7 @@ def resolve_target(target: str) -> str:
         return None
 
 
-def checksum(source_string: bytes) -> int:
-    """
-    Calculate the checksum for the ICMP header and data
-    :param source_string: The data to calculate the checksum for
-    :return: The calculated checksum
-    """
+def checksum(source_string):
     if len(source_string) % 2 == 1:
         source_string += b'\x00'
     checksum = 0
@@ -44,28 +32,18 @@ def checksum(source_string: bytes) -> int:
     return ~checksum & 0xffff
 
 
-def create_icmp_packet(identifier: int, sequence_number: int) -> bytes:
-    """
-    Create an ICMP packet with the specified identifier and sequence number
-    :param identifier: The identifier for the ICMP packet
-    :param sequence_number: The sequence number for the ICMP packet
-    :return: The created ICMP packet
-    """
+def create_icmp_packet(identifier, sequence_number):
     icmp_type = 8  # ICMP Echo Request
     code = 0  # Code for ICMP Echo Request
     chk_sum = 0  # Initial checksum value
     header = struct.pack('!BBHHH', icmp_type, code, chk_sum, identifier, sequence_number)
-    data = os.urandom(48)  # Random payload data
-    chk_sum = checksum(header + data)  # Calculate checksum
+    data = os.urandom(48)
+    chk_sum = checksum(header + data)
     header = struct.pack('!BBHHH', icmp_type, code, chk_sum, identifier, sequence_number)
     return header + data
 
 
-def create_socket() -> socket:
-    """
-    Create a raw socket for sending ICMP packets
-    :return: The created raw socket or None if creation fails
-    """
+def create_socket():
     try:
         return socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
     except socket.error as e:
@@ -73,15 +51,7 @@ def create_socket() -> socket:
         return None
 
 
-def send_icmp_packet(icmp_socket: socket.socket, target_ip: str, packet: bytes, ttl: int) -> float:
-    """
-    Send an ICMP packet to the target IP with the specified TTL
-    :param icmp_socket: The socket to send the packet through
-    :param target_ip: The target IP address
-    :param packet: The ICMP packet to send
-    :param ttl: The Time-To-Live value for the packet
-    :return: The time the packet was sent or None if sending fails
-    """
+def send_icmp_packet(icmp_socket, target_ip, packet, ttl):
     try:
         icmp_socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
         send_time = time.time()
@@ -92,26 +62,14 @@ def send_icmp_packet(icmp_socket: socket.socket, target_ip: str, packet: bytes, 
         return None
 
 
-def resolve_ip_to_hostname(ip: str) -> str:
-    """
-    Resolve an IP address to a hostname
-    :param ip: The IP address to resolve
-    :return: The resolved hostname or the IP address if resolution fails
-    """
+def resolve_ip_to_hostname(ip):
     try:
         return socket.gethostbyaddr(ip)[0]
     except socket.herror:
         return ip
 
 
-def receive_icmp_reply(icmp_socket: socket.socket, target_ip: str, send_time: float) -> tuple:
-    """
-    Receive an ICMP reply and calculate the round-trip time (RTT)
-    :param icmp_socket: The socket to receive the reply through
-    :param target_ip: The target IP address
-    :param send_time: The time the packet was sent
-    :return: A tuple containing a boolean indicating if the reply was received, the RTT, and the reply IP address
-    """
+def receive_icmp_reply(icmp_socket, target_ip, ttl, send_time, timings_per_host, loss_per_ttl):
     try:
         icmp_socket.settimeout(2)
         data, addr = icmp_socket.recvfrom(1024)
@@ -128,13 +86,17 @@ def receive_icmp_reply(icmp_socket: socket.socket, target_ip: str, send_time: fl
         return False, None, None
 
 
+def format_value(value):
+    def format_value(value):
+        if isinstance(value, float):
+            return f"{value:.2f}"
+        elif isinstance(value, int):
+            return f"{value}"
+        else:
+            return str(value)
+
+
 def update_rtt_stats(ttl: int, rtt: float):
-    """
-    Update the RTT statistics for a given TTL
-    :param ttl: The Time-To-Live value
-    :param rtt: The round-trip time
-    :return: A tuple containing the last RTT, minimum RTT, maximum RTT, average RTT, and standard deviation of RTT
-    """
     if ttl not in rtt_data:
         rtt_data[ttl] = []
     rtt_data[ttl].append(rtt)
@@ -147,11 +109,6 @@ def update_rtt_stats(ttl: int, rtt: float):
 
 
 def calculate_loss_percentage(ttl: int) -> float:
-    """
-    Calculate the packet loss percentage for a given TTL
-    :param ttl: The Time-To-Live value
-    :return: The packet loss percentage
-    """
     sent = sent_packets.get(ttl, 0)
     received = received_packets.get(ttl, 0)
     if sent == 0:
@@ -159,12 +116,7 @@ def calculate_loss_percentage(ttl: int) -> float:
     return ((sent - received) / sent) * 100
 
 
-def main(stdscr: curses.window) -> None:
-    """
-    Main function to perform traceroute-like functionality with curses for display
-    :param stdscr: The curses window object
-    :return: None
-    """
+def main(stdscr):
     if len(sys.argv) != 2:
         print("Usage: sudo python mtr4.py <target_domain>")
         return
@@ -174,7 +126,6 @@ def main(stdscr: curses.window) -> None:
     if target_ip is None:
         return
 
-    # Clear the screen and print the header
     stdscr.clear()
     stdscr.addstr(0, 0, f"Target {target} resolved to {target_ip}")
     stdscr.addstr(1, 0,
@@ -190,6 +141,8 @@ def main(stdscr: curses.window) -> None:
     sequence_number = 1
 
     ttl = 2
+    timings_per_host = {}
+    loss_per_ttl = {}
 
     while True:
         packet = create_icmp_packet(identifier, sequence_number)
@@ -201,7 +154,7 @@ def main(stdscr: curses.window) -> None:
             sent_packets[ttl] = 0
         sent_packets[ttl] += 1
 
-        received, rtt, reply_ip = receive_icmp_reply(sock, target_ip, send_time)
+        received, rtt, reply_ip = receive_icmp_reply(sock, target_ip, ttl, send_time, timings_per_host, loss_per_ttl)
 
         if received:
             if ttl not in received_packets:
@@ -239,7 +192,6 @@ def main(stdscr: curses.window) -> None:
     stdscr.addstr(ttl + 2, 0, "Press any key to exit...")
     stdscr.refresh()
     stdscr.getch()
-
 
 if __name__ == "__main__":
     curses.wrapper(main)
