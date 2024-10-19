@@ -7,7 +7,6 @@ import signal
 import statistics
 import curses
 
-
 rtt_data = {}
 sent_packets = {}
 received_packets = {}
@@ -70,7 +69,6 @@ def resolve_ip_to_hostname(ip):
         return ip
 
 
-
 def receive_icmp_reply(icmp_socket, target_ip, ttl, send_time, timings_per_host, loss_per_ttl):
     try:
         icmp_socket.settimeout(2)
@@ -117,6 +115,7 @@ def calculate_loss_percentage(ttl: int) -> float:
         return 0.0
     return ((sent - received) / sent) * 100
 
+
 def main(stdscr):
     if len(sys.argv) != 2:
         print("Usage: sudo python mtr4.py <target_domain>")
@@ -129,7 +128,9 @@ def main(stdscr):
 
     stdscr.clear()
     stdscr.addstr(0, 0, f"Target {target} resolved to {target_ip}")
-    stdscr.addstr(1, 0, f"{'TTL':<5}{'Host':<30}{'Last':<10}{'Min':<10}{'Avg':<10}{'Max':<10}{'StDev':<10}{'Loss %':<10}")
+    stdscr.addstr(1, 0,
+                  f"{'TTL':<5}{'Host':<79}{'Last':<14} {'Min':<13} {'Avg':<13} {'Max':<11} {'StDev':<11} {'Loss %':<10}")
+    stdscr.addstr(2, 0, "-" * 158)
     stdscr.refresh()
 
     sock = create_socket()
@@ -139,7 +140,7 @@ def main(stdscr):
     identifier = os.getpid() & 0xFFFF
     sequence_number = 1
 
-    ttl = 1
+    ttl = 2
     timings_per_host = {}
     loss_per_ttl = {}
 
@@ -154,6 +155,7 @@ def main(stdscr):
         sent_packets[ttl] += 1
 
         received, rtt, reply_ip = receive_icmp_reply(sock, target_ip, ttl, send_time, timings_per_host, loss_per_ttl)
+
         if received:
             if ttl not in received_packets:
                 received_packets[ttl] = 0
@@ -162,7 +164,8 @@ def main(stdscr):
             last_rtt, min_rtt, max_rtt, avg_rtt, stdev_rtt = update_rtt_stats(ttl, rtt)
             loss_percentage = calculate_loss_percentage(ttl)
             stdscr.addstr(ttl + 1, 0,
-                          f"{ttl:<5}{reply_ip:<30}{last_rtt:<10.2f}{min_rtt:<10.2f}{avg_rtt:<10.2f}{max_rtt:<10.2f}{stdev_rtt:<10.2f}{loss_percentage:<10.2f}% (Reached destination)")
+                          f"{ttl:<5}{reply_ip:<70}{last_rtt:>10.2f} ms {min_rtt:>10.2f} ms "
+                          f"{avg_rtt:>10.2f} ms {max_rtt:>10.2f} ms {stdev_rtt:>10.2f} ms {loss_percentage:>10.2f} % (Reached destination)")
             stdscr.refresh()
             break
 
@@ -175,16 +178,20 @@ def main(stdscr):
             last_rtt, min_rtt, max_rtt, avg_rtt, stdev_rtt = update_rtt_stats(ttl, rtt)
             loss_percentage = calculate_loss_percentage(ttl)
             stdscr.addstr(ttl + 1, 0,
-                          f"{ttl:<5}{hostname:<30}{last_rtt:<10.2f}{min_rtt:<10.2f}{avg_rtt:<10.2f}{max_rtt:<10.2f}{stdev_rtt:<10.2f}{loss_percentage:<10.2f}%")
+                          f"{ttl:<5}{hostname:<70}{last_rtt:>10.2f} ms {min_rtt:>10.2f} ms "
+                          f"{avg_rtt:>10.2f} ms {max_rtt:>10.2f} ms {stdev_rtt:>10.2f} ms {loss_percentage:>10.2f} %")
         else:
-            loss_percentage = calculate_loss_percentage(ttl)
-            stdscr.addstr(ttl + 1, 0, f"{ttl:<5}{'*':<30}{'Request timed out.':<50}{loss_percentage:<10.2f}%")
+            loss_percentage = 100.0
+            stdscr.addstr(ttl + 1, 0,
+                          f"{ttl:<5}{'*':<70}{'*':>10} ms {'*':>10} ms {'*':>10} ms {'*':>10} ms {'*':>10} ms {loss_percentage:>10.2f} %")
         stdscr.refresh()
         ttl += 1
         sequence_number += 1
 
     sock.close()
-
+    stdscr.addstr(ttl + 2, 0, "Press any key to exit...")
+    stdscr.refresh()
+    stdscr.getch()
 
 if __name__ == "__main__":
     curses.wrapper(main)
